@@ -1,86 +1,58 @@
-import re
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from transformers import GPT2Tokenizer, TFGPT2LMHeadModel
-import tensorflow as tf
+from transformers import Trainer, TrainingArguments, AutoTokenizer, AutoModelForCausalLM
+from datasets import load_dataset
 import sys
 
 if len(sys.argv) <= 1:
-    print("No username specified")
+    print("Missing name")
     exit(1)
 
-user_query = sys.argv[1]
+name_query = sys.argv[1]
+print(f"Query name: {name_query}")
 
-tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+# Load the datasets
+train_dataset = load_dataset('text', data_files={'train': f'{name_query}_train.txt'})
+eval_dataset = load_dataset('text', data_files={'eval': f'{name_query}_val.txt'})
 
-def tokenize_function(examples):
-    return tokenizer(examples['text'], truncation=True, padding='max_length', max_length=128)
-
-def load_dataset(file_path):
-    print(f"Loading dataset: {file_path}")
-    print("Loading CSV")
-    df = pd.read_csv(file_path)
-    print("Tokenizing...")
-    tokenized_texts = df['text'].apply(lambda x: tokenizer(x, truncation=True, padding='max_length', max_length=128, return_tensors='tf'))
-    input_ids = []
-    attention_masks = []
-    print("Gathering lists...")
-    for item in tokenized_texts:
-        input_ids.append(item['input_ids'])
-        attention_masks.append(item['attention_mask'])
-    
-    print("Returning dataset from slices...")
-    return tf.data.Dataset.from_tensor_slices(({ 'input_ids': tf.concat(input_ids, axis=0), 'attention_mask': tf.concat(attention_masks, axis=0)}, tf.concat(input_ids, axis=0)))
-
-print("Loading training dataset")
-train_dataset = load_dataset(f"{user_query}_train.csv")
-print("Loading eval dataset")
-val_dataset = load_dataset(f"{user_query}_val.csv")
-
-def to_tf_dataset(encoded_dataset):
-    def gen():
-        for ex in encoded_dataset:
-            yield ({ 'input_ids': ex['input_ids'], 'attention_mask': ex['attention_mask']}, ex['input_ids'])
-    return tf.data.Dataset.from_generator(gen, ({ 'input_ids': tf.int32, 'attention_mask': tf.int32}, tf.int32))
-
-print("Converting to TF dataset")
-print("Converting training TF dataset...")
-train_tf_dataset = to_tf_dataset(train_dataset).batch(4)
-print("Converting eval TF dataset...")
-val_tf_dataset = to_tf_dataset(val_dataset).batch(4)
-
-print("Fetching GPT-2 model...")
-model = TFGPT2LMHeadModel.from_pretrained('gpt2')
+# Initialize the tokenizer and model
+model_name = 'gpt2'  # You can choose a different model if needed
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+tokenizer.pad_token = tokenizer.eos_token
+model = AutoModelForCausalLM.from_pretrained(model_name)
 model.resize_token_embeddings(len(tokenizer))
 
-print("Creating Adam optimizer")
-optimizer = tf.keras.optimizers.Adam(learning_rate=5e-5)
+# Tokenize the datasets
+def tokenize_function(examples):
+    tokenized = tokenizer(examples['text'], return_tensors='pt', truncation=True, padding='max_length', max_length=512)
+    tokenized['labels'] = tokenized['input_ids']
+    return tokenized
 
-print("Compiling model with optimizer...")
-model.compile(optimizer=optimizer, loss=model.compute_loss)
+tokenized_train_dataset = train_dataset.map(tokenize_function, batched=True, remove_columns=['text'])
+tokenized_eval_dataset = eval_dataset.map(tokenize_function, batched=True, remove_columns=['text'])
 
-@tf.function
-def train_step(inputs):
-    input_ids = inputs['input_ids']
-    attention_mask = inputs['attention_mask']
-    with tf.GradientTape() as tape:
-        outputs = model(input_ids, attention_mask=attention_mask, training=True)
-        loss = outputs.loss
-    gradients = tape.gradient(loss, model.trainable_variables)
-    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-    return loss
+# Define training arguments
+training_args = TrainingArguments(
+    output_dir='./results',
+    num_train_epochs=3,
+    per_device_train_batch_size=4,
+    per_device_eval_batch_size=4,
+    warmup_steps=500,
+    weight_decay=0.01,
+    logging_dir='./logs',
+    logging_steps=10,
+    evaluation_strategy="epoch",
+)
 
-print("Fitting model from datasets...")
-for epoch in range(3):
-    print(f"Epoch {epoch + 1}/{3}")
-    for batch in train_dataset.batch(4):
-        loss = train_step(batch[0])
-        print(f"Loss: {loss.numpy()}")
+# Initialize the Trainer
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=tokenized_train_dataset['train'],
+    eval_dataset=tokenized_eval_dataset['eval'],
+)
 
-print(f"Saving model to ./model_{user_query}")
-model.save_pretrained(f"./model_{user_query}")
-print(f"Saving tokenizer to ./model_{user_query}")
-tokenizer.save_pretrained(f"./model_{user_query}")
+# Train the model
+trainer.train()
 
-print(f"Saved as ./model_{user_query}")
+# Save the model
+model.save_pretrained(f'./{name_query}_trained_model')
+tokenizer.save_pretrained(f'./{name_query}_trained_model')

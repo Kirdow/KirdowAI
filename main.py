@@ -1,103 +1,55 @@
-import numpy as np
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers, optimizers as op
-import random as rng
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from time import sleep
+import sys
 
-def validate_devices():
-    devices = tf.config.list_physical_devices()
-    print("Available devices:", devices)
+if len(sys.argv) <= 1:
+    print("Missing name")
+    exit(1)
 
-    gpu_available = tf.config.list_physical_devices('GPU')
-    print("GPU Available:", gpu_available)
+name_query = sys.argv[1]
+print(f"Using model: {name_query}")
 
-    exit(0)
+# Load the trained model and tokenizer
+model_name = f'./{name_query}_trained_model'
+print("Loading model")
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
+print("Model loaded!")
+sleep(1)
 
-# validate_devices()
+# Function to generate a response
+def generate_response(prompt, history, max_length=1000, num_return_sequences=1):
+    if not prompt.strip().endswith('?'):
+        prompt = prompt.strip() + '?'
 
-training_size = 100_000
-num_max = 1_000
+    prompt_with_question = f"Q: {prompt}\nA:"
 
-print("Creating model layers")
+    inputs = tokenizer(prompt_with_question, return_tensors='pt', truncation=True, padding=True)
+    outputs = model.generate(
+        inputs['input_ids'], 
+        max_length=max_length, 
+        num_return_sequences=num_return_sequences, 
+        pad_token_id=tokenizer.eos_token_id,
+        do_sample=True,  # You can set this to False for deterministic results
+        top_k=50,        # Adjust this for sampling (if do_sample=True)
+        top_p=0.95       # Adjust this for nucleus sampling (if do_sample=True)
+    )
+    responses = [tokenizer.decode(output, skip_special_tokens=True).replace(prompt_with_question, '').strip() for output in outputs]
+    
+    for entry in responses:
+        history.append(f"{entry}")
 
-input_nodes = 16 # because 16-bit
-output_nodes = 2
-hidden_layers = [64, 16, 4]
+    return prompt, responses, history
 
-model = keras.Sequential()
-model.add(layers.Input(shape=(input_nodes,)))
+history = []
+while True:
+    print("------------------------------------")
+    prompt = input("Enter Prompt (:q to exit): ")
+    if prompt == ":q":
+        print("Quitting...")
+        exit(0)
 
-for units in hidden_layers:
-    model.add(layers.Dense(units, activation='relu'))
-
-model.add(layers.Dense(output_nodes, activation='softmax'))
-
-print("Compiling model")
-
-model.compile(optimizer=op.Adam(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
-
-def get_num(cap=None):
-    rng_cap = num_max if cap is None else cap
-    return rng.randint(1, rng_cap)
-
-def get_num_bin(n):
-    if not 1 <= n < 2 ** 15:
-        raise ValueError("Input out of range for positive signed 16-bit integer")
-
-    binary_str = f"{n & (2**16-1):016b}"
-    return [int(bit) for bit in binary_str]
-
-def get_expected(n):
-    n %= 3
-    if n == 1: return [1, 0]
-    elif n == 2: return [0, 1]
-    return 'undefined'
-
-def parse_input_output_data(N=None):
-    N = training_size if N is None else N
-
-    inputs = []
-    outputs = []
-
-    percent = 0
-    index = 0
-    while index < N:
-        num = get_num()
-        mod3 = num % 3
-        if mod3 == 0:
-            continue
-        inputs.append(get_num_bin(num))
-        outputs.append([1, 0] if mod3 == 1 else [0, 1])
-        index += 1
-        new_percent = index * 100 // N
-        if new_percent != percent:
-            print(f" {new_percent}%\r", end='',flush=True)
-        percent = new_percent
-
-    return np.array(inputs), np.array(outputs)
-
-print("Creating data")
-input_data, output_data = parse_input_output_data()
-
-print("Training with data")
-model.fit(input_data, output_data, epochs=10, batch_size=None)
-
-def filter_prediction(a):
-    return [round(n, 3) for n in a]
-
-print("Predicting...")
-predict_index = 0
-while predict_index < 15:
-    num = get_num()
-    if predict_index < 9:
-        if num % 3 == 0:
-            continue
-    else:
-        if num % 3 != 0:
-            continue
-
-    prediction = model.predict(np.array([get_num_bin(num)]))[0]
-    print(f"{predict_index}: {num} % 3 plot = [{', '.join(map(str, filter_prediction(prediction)))}] | expected: {get_expected(num)}")
-    predict_index += 1
-
-print("Done!")
+    input_prompt, responses, history = generate_response(prompt, history)
+    print(f"Your Input: {input_prompt}")
+    for i, response in enumerate(responses):
+        print(f"Response {i + 1}: {response}")
