@@ -1,0 +1,12 @@
+*_trained_model
+trained_model
+*_train.csv
+*_train.txt
+*_val.csv
+*_val.txt
+logs
+logs.zip
+results
+icelog
+data.txt
+*.log
