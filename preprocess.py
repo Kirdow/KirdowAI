@@ -5,12 +5,17 @@ import sys
 import os
 from model_util import Util
 
+# Predicates used for filtering
+# Modify as needed
 predicate_min_len = 0
 predicate_max_len = 500
 predicate_min_words = 8
 predicate_max_words = 0
 predicate_allow_new_line = False
 
+# This regex pattern is for the specifc format I use in the logs
+# luckily the logs never included the discriminator, so I won't
+# need to keep track of two types of usernames here.
 regex_pattern = r"^(\[\d{4}\-\d{2}\-\d{2} \d{2}\:\d{2}\:\d{2}\] )?\d+ \=\> \[CHAT\]{\¤IceCord.\:\:\#([a-z_-]+)\} @([a-zA-Z0-9._]{2,32}): (.+)$"
 
 def preprocess_logs(file_path, user_search=None, blacklist=None):
@@ -20,15 +25,30 @@ def preprocess_logs(file_path, user_search=None, blacklist=None):
     cleaned_logs = []
     for line in logs:
         if match := re.search(regex_pattern, line):
+            # Get channel name, we don't want anything from the admin channels
+            # We also filter out the NSFW channel because it's often used for
+            # messages that are written less carefully or contain heavily
+            # out of context chatting
             channel = match.group(2).lower()
-            if channel in ['admin_chat', 'admin_data', 'testing']:
+            if channel in ['admin_chat', 'admin_data', 'testing', 'nsfw']:
                 continue
+
+            # we need to filter out symbols in order for the filter to work.
+            # both before the username update and after. without this, the
+            # search would potentially miss whenever the username wasn't
+            # available after the update
             username = match.group(3).lower()
-            username = re.sub(r"[\.\_]", '', username)
+            username = re.sub(r"[^a-z]", '', username)
+            
+            # we include a user search for the cases when the model is to be
+            # trained from a single user only.
             if not user_search is None and username != user_search:
                 continue
+
+            # The blacklist will be used for users who have opted-out of the big/global model
             if not blacklist is None and username in blacklist:
                 continue
+
             # fetch the message first
             message = match.group(4).replace('\b', '\n').strip()
 
@@ -40,15 +60,22 @@ def preprocess_logs(file_path, user_search=None, blacklist=None):
             message = re.sub(r"\<\@\!?\d+\>", '', message)
             # remove channel refs
             message = re.sub(r"\<\#\d+\>", '', message)
+            # remove emotes
+            message = re.sub(r"\<\:[^\:]\:\d+\>", '', message)
             # remove symbols
-            message = re.sub(r"[\"\'\:\`\*\~]", '', message)
+            message = re.sub(r"[\"\:\`\*\~\,]", '', message)
             # remove understrikes (hopefully)
             message = re.sub(r"__", '', message)
+
+            # finalize removal with a trim in order to get rid of spaces at the start and end
+            # these would appear due to the space after (or before) a mention tag
+            message = message.strip()
 
             # split into words for use with a few predicates
             words = [x for x in message.split(' ') if len(x.strip()) > 0]
             
             # run predicates
+            # first condition makes sure the predicate is enabled
             if predicate_min_len > 0 and len(message) < predicate_min_len:
                 continue
             if predicate_max_len > 0 and len(message) > predicate_max_len:
