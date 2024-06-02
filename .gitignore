@@ -1,12 +1,21 @@
+# old data
 *_trained_model
 trained_model
 *_train.csv
 *_train.txt
 *_val.csv
 *_val.txt
-logs
-logs.zip
 results
-icelog
+logs
+
+# new data
+appdata
+
+# local data
+logs.zip
 data.txt
+icelog
 *.log
+
+# python
+__pycache__
