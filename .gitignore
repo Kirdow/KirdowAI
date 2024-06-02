@@ -14,8 +14,10 @@ appdata
 # local data
 logs.zip
 data.txt
-icelog
 *.log
+
+# input data
+inputlogs
 
 # python
 __pycache__

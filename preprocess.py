@@ -125,8 +125,8 @@ def load_logs(file_path, cleaned_logs):
     cleaned_logs.extend(new_cleaned_logs)
 
 cleaned_logs = []
-for filename in os.listdir("./icelog"):
-    file_path = os.path.join("./icelog", filename)
+for filename in os.listdir("./inputlogs"):
+    file_path = os.path.join("./inputlogs", filename)
     if os.path.isfile(file_path) and filename.endswith('.log'):
         load_logs(file_path, cleaned_logs)
 
