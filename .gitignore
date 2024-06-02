@@ -18,6 +18,7 @@ data.txt
 
 # input data
 inputlogs
+logregex.txt
 
 # python
 __pycache__
