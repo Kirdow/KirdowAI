@@ -3,6 +3,13 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import sys
 import os
+from model_util import Util
+
+predicate_min_len = 0
+predicate_max_len = 500
+predicate_min_words = 8
+predicate_max_words = 0
+predicate_allow_new_line = False
 
 regex_pattern = r"^(\[\d{4}\-\d{2}\-\d{2} \d{2}\:\d{2}\:\d{2}\] )?\d+ \=\> \[CHAT\]{\¤IceCord.\:\:\#([a-z_-]+)\} @([a-zA-Z0-9._]{2,32}): (.+)$"
 
@@ -22,10 +29,42 @@ def preprocess_logs(file_path, user_search=None, blacklist=None):
                 continue
             if not blacklist is None and username in blacklist:
                 continue
+            # fetch the message first
             message = match.group(4).replace('\b', '\n').strip()
+
+            # do the filter second and before predicates
+            # as predicates rely on the messages that are ready to be
+            # used in training
+
+            # remove tags
+            message = re.sub(r"\<\@\!?\d+\>", '', message)
+            # remove channel refs
+            message = re.sub(r"\<\#\d+\>", '', message)
+            # remove symbols
+            message = re.sub(r"[\"\'\:\`\*\~]", '', message)
+            # remove understrikes (hopefully)
+            message = re.sub(r"__", '', message)
+
+            # split into words for use with a few predicates
+            words = [x for x in message.split(' ') if len(x.strip()) > 0]
+            
+            # run predicates
+            if predicate_min_len > 0 and len(message) < predicate_min_len:
+                continue
+            if predicate_max_len > 0 and len(message) > predicate_max_len:
+                continue
+            if predicate_min_words > 0 and len(words) < predicate_min_words:
+                continue
+            if predicate_max_words > 0 and len(words) > predicate_max_words:
+                continue
+            if not predicate_allow_new_line and '\n' in message:
+                continue
+
+            # final check for empty message, needed in case no predicates were used
             if len(message) == 0:
                 continue
 
+            # add the message
             cleaned_logs.append(message)
 
     return cleaned_logs
@@ -72,15 +111,8 @@ if not limit is None:
 
 df = pd.DataFrame(cleaned_logs, columns=['text'])
 train_df, val_df = train_test_split(df, test_size=0.1)
-
-train_df.to_csv(f"{target_name}_train.csv", index=False)
-val_df.to_csv(f"{target_name}_val.csv", index=False)
-
-def fix_file(path_from, path_to):
-    with open(path_from, 'r') as infile, open(path_to, 'w') as outfile:
-        next(infile)
-        for line in infile:
-            outfile.write(line)
-
-fix_file(f"{target_name}_train.csv", f"{target_name}_train.txt")
-fix_file(f"{target_name}_val.csv", f"{target_name}_val.txt")
+def save(df, name):
+    with open(name, 'w') as f:
+        f.write('\n'.join([item for item in df['text']]))
+save(train_df, Util.get_train(target_name, False))
+save(val_df, Util.get_val(target_name, False))

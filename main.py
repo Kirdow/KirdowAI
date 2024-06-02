@@ -1,5 +1,6 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from time import sleep
+from model_util import Util
 import sys
 
 if len(sys.argv) <= 1:
@@ -15,7 +16,7 @@ else:
 print(f"Using model: {target_name}")
 
 # Load the trained model and tokenizer
-model_name = f'./{target_name}_trained_model'
+model_name = Util.get_model_user(target_name)
 print("Loading model")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name)
@@ -27,7 +28,7 @@ def generate_response(prompt, history, max_length=1000, num_return_sequences=1):
     if not prompt.strip().endswith('?'):
         prompt = prompt.strip() + '?'
 
-    prompt_with_question = f"Q: {prompt}\nA:"
+    prompt_with_question = f"Q: {prompt} A:"
 
     inputs = tokenizer(prompt_with_question, return_tensors='pt', truncation=True, padding=True)
     outputs = model.generate(

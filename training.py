@@ -1,5 +1,6 @@
 from transformers import Trainer, TrainingArguments, AutoTokenizer, AutoModelForCausalLM
 from datasets import load_dataset
+from model_util import Util
 import sys
 
 if len(sys.argv) <= 1:
@@ -15,8 +16,8 @@ else:
 print(f"Query name: {target_name}")
 
 # Load the datasets
-train_dataset = load_dataset('text', data_files={'train': f'{target_name}_train.txt'})
-eval_dataset = load_dataset('text', data_files={'eval': f'{target_name}_val.txt'})
+train_dataset = load_dataset('text', data_files={'train': Util.get_train(target_name, False)})
+eval_dataset = load_dataset('text', data_files={'eval': Util.get_val(target_name, False)})
 
 # Initialize the tokenizer and model
 model_name = 'gpt2'  # You can choose a different model if needed
@@ -36,13 +37,13 @@ tokenized_eval_dataset = eval_dataset.map(tokenize_function, batched=True, remov
 
 # Define training arguments
 training_args = TrainingArguments(
-    output_dir='./results',
+    output_dir=Util.get_result(),
     num_train_epochs=3,
-    per_device_train_batch_size=4,
-    per_device_eval_batch_size=4,
+    per_device_train_batch_size=3,
+    per_device_eval_batch_size=3,
     warmup_steps=500,
     weight_decay=0.01,
-    logging_dir='./logs',
+    logging_dir=Util.get_logs(),
     logging_steps=10,
     evaluation_strategy="epoch",
 )
@@ -59,5 +60,5 @@ trainer = Trainer(
 trainer.train()
 
 # Save the model
-model.save_pretrained(f'./{target_name}_trained_model')
-tokenizer.save_pretrained(f'./{target_name}_trained_model')
+model.save_pretrained(Util.get_model_user(target_name))
+tokenizer.save_pretrained(Util.get_model_user(target_name))
