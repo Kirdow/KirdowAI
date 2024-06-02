@@ -19,3 +19,6 @@ icelog
 
 # python
 __pycache__
+
+# transcript
+transcript.txt
