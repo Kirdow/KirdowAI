@@ -7,11 +7,16 @@ if len(sys.argv) <= 1:
     exit(1)
 
 name_query = sys.argv[1]
-print(f"Query name: {name_query}")
+if name_query == '--':
+    name_query = None
+    target_name = 'everyone'
+else:
+    target_name = name_query
+print(f"Query name: {target_name}")
 
 # Load the datasets
-train_dataset = load_dataset('text', data_files={'train': f'{name_query}_train.txt'})
-eval_dataset = load_dataset('text', data_files={'eval': f'{name_query}_val.txt'})
+train_dataset = load_dataset('text', data_files={'train': f'{target_name}_train.txt'})
+eval_dataset = load_dataset('text', data_files={'eval': f'{target_name}_val.txt'})
 
 # Initialize the tokenizer and model
 model_name = 'gpt2'  # You can choose a different model if needed
@@ -54,5 +59,5 @@ trainer = Trainer(
 trainer.train()
 
 # Save the model
-model.save_pretrained(f'./{name_query}_trained_model')
-tokenizer.save_pretrained(f'./{name_query}_trained_model')
+model.save_pretrained(f'./{target_name}_trained_model')
+tokenizer.save_pretrained(f'./{target_name}_trained_model')

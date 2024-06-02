@@ -7,10 +7,15 @@ if len(sys.argv) <= 1:
     exit(1)
 
 name_query = sys.argv[1]
-print(f"Using model: {name_query}")
+if name_query == '--':
+    name_query = None
+    target_name = 'everyone'
+else:
+    target_name = name_query
+print(f"Using model: {target_name}")
 
 # Load the trained model and tokenizer
-model_name = f'./{name_query}_trained_model'
+model_name = f'./{target_name}_trained_model'
 print("Loading model")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name)
