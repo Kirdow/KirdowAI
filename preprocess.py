@@ -20,6 +20,11 @@ if not regex_found:
     print("Regex file created as ./logregex.txt")
     exit(0)
 
+logs_exist, logs_dir = utils.validate_logs()
+if not logs_exist:
+    print(f"Logs directory not found and was created as {logs_dir}")
+    exit(0)
+
 def preprocess_logs(file_path, user_search=None, blacklist=None):
     with open(file_path, 'r', encoding='utf-8') as file:
         logs = file.readlines()
