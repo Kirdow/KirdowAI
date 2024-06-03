@@ -25,3 +25,6 @@ __pycache__
 
 # transcript
 transcript.txt
+
+# macOS
+.DS_Store
