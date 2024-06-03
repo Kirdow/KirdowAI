@@ -14,15 +14,23 @@ predicate_min_words = 8
 predicate_max_words = 0
 predicate_allow_new_line = False
 
+# For simplicity on first run, allow for all checks to run
+do_exit = False
+
 # This is the regex pattern that will be used to get the logs from the file
 regex_found, regex_pattern = utils.read_regex("logregex.txt")
 if not regex_found:
     print("Regex file created as ./logregex.txt")
-    exit(0)
+    do_exit = True
 
+# Also validate that the logs directory exists, which it may not do if it was just cloned
 logs_exist, logs_dir = utils.validate_logs()
 if not logs_exist:
     print(f"Logs directory not found and was created as {logs_dir}")
+    do_exit = True
+
+# Exit if at least one of the checks ran
+if do_exit:
     exit(0)
 
 def preprocess_logs(file_path, user_search=None, blacklist=None):
