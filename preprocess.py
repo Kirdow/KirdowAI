@@ -4,6 +4,7 @@ from sklearn.model_selection import train_test_split
 import sys
 import os
 from model_util import Util
+import utils
 
 # Predicates used for filtering
 # Modify as needed
@@ -13,10 +14,11 @@ predicate_min_words = 8
 predicate_max_words = 0
 predicate_allow_new_line = False
 
-# This regex pattern is for the specifc format I use in the logs
-# luckily the logs never included the discriminator, so I won't
-# need to keep track of two types of usernames here.
-regex_pattern = r"^(\[\d{4}\-\d{2}\-\d{2} \d{2}\:\d{2}\:\d{2}\] )?\d+ \=\> \[CHAT\]{\¤IceCord.\:\:\#([a-z_-]+)\} @([a-zA-Z0-9._]{2,32}): (.+)$"
+# This is the regex pattern that will be used to get the logs from the file
+regex_found, regex_pattern = utils.read_regex("logregex.txt")
+if not regex_found:
+    print("Regex file created as ./logregex.txt")
+    exit(0)
 
 def preprocess_logs(file_path, user_search=None, blacklist=None):
     with open(file_path, 'r', encoding='utf-8') as file:
