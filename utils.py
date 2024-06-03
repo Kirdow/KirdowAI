@@ -13,5 +13,7 @@ def read_regex(file_path, content=r"^(\[\d+\] )?([a-z]+): (.+)$"):
 def validate_logs():
     file_path = "./inputlogs"
     exists = os.path.exists(file_path) and os.path.isdir(file_path)
+    if not exists:
+        os.mkdir(file_path)
     return (exists, file_path)
     
